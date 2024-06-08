@@ -1,39 +1,41 @@
 #!/bin/bash
 
-# Ensure the script is run as root
-if [[ $EUID -ne 0 ]]; then
-   echo "This script must be run as root" 
-   exit 1
-fi
+# Define the list of plugins to ignore warnings
+IGNORED_PLUGINS=("wp-rocket" "wp-all-import-pro" "wpai-woocommerce-add-on" "woo-bulk-editor" "revslider" 
+                 "wp-smart-image-resize-pro" "webexpert-woocommerce-piraeus-payment-gateway" 
+                 "webexpert-skroutz-xml-feed" "woodmart-core" "wpae-woocommerce-add-on" 
+                 "wp-all-export-pro" "js_composer" "gp-premium")
 
-# List of plugins to ignore warnings for
-IGNORED_PLUGINS=("wp-rocket" "wp-all-import-pro" "wpai-woocommerce-add-on" "woo-bulk-editor" "revslider" "wp-smart-image-resize-pro" "webexpert-woocommerce-piraeus-payment-gateway" "webexpert-skroutz-xml-feed" "woodmart-core" "wpae-woocommerce-add-on" "wp-all-export-pro" "js_composer")
+# Get a list of all WordPress directories in /home/
+WORDPRESS_DIRS=$(find /home/ -type f -name "wp-config.php" -exec dirname {} \;)
 
-# Function to check and run wp-cli commands
-check_wp_config() {
-  local user_home="$1"
-  
-  # Check if wp-config.php exists in the user's home directory
-  if [[ -f "$user_home/wp-config.php" ]]; then
-    echo "Found wp-config.php in $user_home"
+# Loop through each WordPress directory
+for WP_DIR in $WORDPRESS_DIRS; do
+    # Get the current user for the WordPress directory
+    USER=$(stat -c '%U' "$WP_DIR")
+    
+    # Print the user and directory being processed
+    echo "Processing WordPress installation for user $USER in directory $WP_DIR"
 
-    # Run wp-cli commands and capture output
-    local output=$(su -c "cd $user_home && wp plugin verify-checksums --all 2>&1" "$user")
-    local errors=$(echo "$output" | grep -v -E "$(printf "|%s" "${IGNORED_PLUGINS[@]}")")
+    # Run wp core verify-checksums for the current directory and user
+    OUTPUT=$(sudo -u $USER -i -- wp core verify-checksums --path="$WP_DIR" 2>&1)
 
-    # If there are errors, send an email
-    if [[ ! -z "$errors" ]]; then
-      echo -e "Subject: WP Plugin Verify Checksums Errors\n\nErrors found in $user_home:\n$errors" | sendmail a89@duck.com
+    # Filter out ignored plugin warnings
+    for PLUGIN in "${IGNORED_PLUGINS[@]}"; do
+        OUTPUT=$(echo "$OUTPUT" | grep -v "$PLUGIN")
+    done
+
+    # Print the output of the wp command
+    echo "$OUTPUT"
+
+    # Check if there are any errors
+    if echo "$OUTPUT" | grep -q "Warning\|Error"; then
+        # Print errors to the terminal
+        echo "Errors found for user $USER in directory $WP_DIR:"
+        echo "$OUTPUT"
+        echo "----------------------------------------"
+    else
+        echo "No errors found for user $USER in directory $WP_DIR."
+        echo "----------------------------------------"
     fi
-  fi
-}
-
-# Loop through all system users
-for user in $(cut -d: -f1 /etc/passwd); do
-  user_home=$(eval echo "~$user")
-  
-  # Check if the home directory exists
-  if [[ -d "$user_home" ]]; then
-    check_wp_config "$user_home"
-  fi
 done
