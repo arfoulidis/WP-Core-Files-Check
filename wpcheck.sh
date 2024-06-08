@@ -25,17 +25,16 @@ for WP_DIR in $WORDPRESS_DIRS; do
         OUTPUT=$(echo "$OUTPUT" | grep -v "$PLUGIN")
     done
 
-    # Print the output of the wp command
-    echo "$OUTPUT"
+    # Check if there are any errors or warnings
+    ERRORS=$(echo "$OUTPUT" | grep -E "Warning|Error")
 
-    # Check if there are any errors
-    if echo "$OUTPUT" | grep -q "Warning\|Error"; then
-        # Print errors to the terminal
-        echo "Errors found for user $USER in directory $WP_DIR:"
-        echo "$OUTPUT"
+    # Print errors or warnings if found
+    if [ -n "$ERRORS" ]; then
+        echo "Errors or warnings found for user $USER in directory $WP_DIR:"
+        echo "$ERRORS"
         echo "----------------------------------------"
     else
-        echo "No errors found for user $USER in directory $WP_DIR."
+        echo "No errors or warnings found for user $USER in directory $WP_DIR."
         echo "----------------------------------------"
     fi
 done
