@@ -33,6 +33,12 @@ for WP_DIR in $WORDPRESS_DIRS; do
         echo "Errors or warnings found for user $USER in directory $WP_DIR:"
         echo "$ERRORS"
         echo "----------------------------------------"
+        
+        # Check for specific error and run wp core download if found
+        if echo "$ERRORS" | grep -q "Error: WordPress installation doesn't verify against checksums"; then
+            echo "Running wp core download --skip-content --force for user $USER in directory $WP_DIR"
+            sudo -u $USER -i -- wp core download --skip-content --force --path="$WP_DIR"
+        fi
     else
         echo "No errors or warnings found for user $USER in directory $WP_DIR."
         echo "----------------------------------------"
